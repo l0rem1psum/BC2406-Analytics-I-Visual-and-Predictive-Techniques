@@ -8,7 +8,7 @@ if (!require(data.table)){install.packages("data.table")}
 require(data.table)
 if (!require(gridExtra)){install.packages("gridExtra")}
 require(gridExtra)
-if (!require(devtools)){install.packages("gridExtra")}
+if (!require(devtools)){install.packages("devtools")}
 require(devtools)
 install_github('cttobin/ggthemr')#The package "ggthemr" is still under development
 require(ggthemr)
