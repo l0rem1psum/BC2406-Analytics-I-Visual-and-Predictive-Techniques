@@ -145,7 +145,7 @@ new.hr.dt <- hr.dt[, - c(5, 8, 10, 13, 21, 22, 25, 26, 28, 29, 30, 31)]
 ggplot(new.hr.dt, aes(x = Attrition)) + geom_bar(fill = "steelblue")
 summary(new.hr.dt$Attrition)
 # We observe that there is a severe class imbalance problem in our response variable 'Attrition' (i.e. 1233 cases of 'No', 237 cases of 'Yes')
-# So we use oversampling to solve the problem.
+# So we use oversampling of minority class/undersampling of majority class to solve the problem. For this, we will use both SMOTE and ROSE technique
 set.seed(11112018)
 ind <- sample(2, nrow(new.hr.dt), replace = T, prob = c(0.7, 0.3))
 hr.dt.train <- new.hr.dt[ind == 1,]
@@ -190,7 +190,7 @@ show.coefficients <- function(built.model){
 custom.control.param <- trainControl(method = "repeatedcv",
                                      number = 10,
                                      repeats = 5,
-                                     verboseIter = F)
+                                     verboseIter = T)
 
 # Stepwise Forward Logistic Regression
 log.reg.stepwise.forward <- function(hr.datatable.train, hr.datatable.test){
@@ -328,16 +328,16 @@ support.vector.classifier <- function(hr.datatable.train, hr.datatable.test, Ker
 # Hyper Parameter Optimization / Tuning for Support Vector Machine Classifier
 best.svm <- function(hr.datatable.train, hr.datatable.test){
   set.seed(11112018)
-  svm.tuned <- tune(svm, Attrition ~ ., data = hr.datatable.train, ranges = list(kernel = c("polynomial", "radial", "linear", "sigmoid"), epsilon = seq(0, 1, 0.1), cost = 2 ^ (1 : 8)))
+  svm.tuned <- tune(svm, Attrition ~ ., data = hr.datatable.train, ranges = list(epsilon = seq(0, 1, 0.25), cost = 2 ^ (2:6))) 
   # Cost captures contraint violation. If cost is too high -> overfitting, otherwise underfitting
   plot(svm.tuned)
   # Dark Region means lower misclassification error
-  print(summary(svm.tuned))
   svm.best <- svm.tuned$best.model
   print(summary(svm.best))
-  pred.svm.best <- predict(svm.best, hr.dt.test)
-  cm.svm.best <- table(Predicted = pred.svm.best, Actual = hr.dt.test$Attrition)
-  sum(diag(cm.svm.best)) / sum(cm.svm.best) # To find the accuracy
+  pred.svm.best <- predict(svm.best, hr.datatable.test)
+  cm.svm.best <- table(Predicted = pred.svm.best, Actual = hr.datatable.test$Attrition)
+  print(sum(diag(cm.svm.best)) / sum(cm.svm.best)) # To find the accuracy
+  print(cm.svm.best)
   
   roc <- performance(prediction(as.numeric(pred.svm.best), as.numeric(hr.datatable.test$Attrition)), "tpr", "fpr")
   plot(roc, colorize = T, main = "ROC Curve", ylab = "Sensitivity", xlab = "1-Specificity")
@@ -421,7 +421,7 @@ hr.company.logreg.enet.SMOTE <- log.reg.enet(hr.dt.train.SMOTE, hr.dt.test)
 # Accuracy : 0.7414
 # Sensitivity : 0.7246
 # Specificity : 0.7443
-# AUC : 0.7345
+# AUC : 0.7345 (Same as ridge)
 
 ### Classification and Regression Tree (CART)
 hr.company.cart.max.SMOTE <- max.tree(hr.dt.train.SMOTE, hr.dt.test)
@@ -642,6 +642,50 @@ hr.company.svm.sigmoid.ROSE.over <- support.vector.classifier(hr.dt.train.over.R
 # Specificity : 0.637931
 # AUC : 0.7298
 
+# All the data has been recorded in a file
+performace.dt <- fread("ModelPerformance.csv")
+head(performace.dt[order(Accuracy, decreasing = TRUE)])
+#                      V1  Accuracy Sensitivity Specificity AUC
+# 1:       svm.poly.SMOTE 0.8534483 0.01449275 1.00000000 0.5072
+# 2:  svm.poly.ROSE.under 0.8534483 0.98550720 0.06835443 0.5269
+# 3:    rforest.ROSE.over 0.8513000 0.24638000 0.95696000 0.6017
+# 4:     svm.radial.SMOTE 0.7887931 0.59420290 0.82278480 0.7085
+# 5: svm.radial.ROSE.over 0.7780172 0.63768120 0.80253160 0.7201
+# 6:    svm.sigmoid.SMOTE 0.7672414 0.63768123 0.78987340 0.7138
+head(performace.dt[order(Sensitivity, decreasing = TRUE)])
+#                        V1 Accuracy Sensitivity Specificity AUC
+# 1:    svm.poly.ROSE.under 0.8534483 0.9855072 0.06835443 0.5269
+# 2:     svm.poly.ROSE.over 0.5926724 0.8115942 0.55443040 0.6830
+# 3:         cart.ROSE.over 0.7500000 0.8000000 0.46380000 0.6319
+# 4: logreg.lasso.ROSE.over 0.7478000 0.7681000 0.74430000 0.7562
+# 5:  logreg.enet.ROSE.over 0.7478000 0.7681000 0.74430000 0.7562
+# 6: logreg.ridge.ROSE.over 0.7435000 0.7536000 0.74180000 0.7477
+head(performace.dt[order(Specificity, decreasing = TRUE)])
+#                      V1 Accuracy Sensitivity Specificity AUC
+# 1:       svm.poly.SMOTE 0.8534483 0.01449275 1.0000000 0.5072
+# 2:    rforest.ROSE.over 0.8513000 0.24638000 0.9569600 0.6017
+# 3:     svm.radial.SMOTE 0.7887931 0.59420290 0.8227848 0.7085
+# 4: svm.radial.ROSE.over 0.7780172 0.63768120 0.8025316 0.7201
+# 5:    svm.sigmoid.SMOTE 0.7672414 0.63768123 0.7898734 0.7138
+# 6:        rforest.SMOTE 0.7629000 0.60870000 0.7898700 0.6993
+head(performace.dt[order(AUC, decreasing = TRUE)])
+#                   V1 Accuracy Sensitivity Specificity AUC
+# 1:   logreg.forward.ROSE.over 0.7457 0.7443 0.7536 0.8174
+# 2:  logreg.backward.ROSE.over 0.7457 0.7443 0.7536 0.8174
+# 3:       logreg.forward.SMOTE 0.7047 0.6937 0.7681 0.8075
+# 4:      logreg.backward.SMOTE 0.7047 0.6937 0.7681 0.8075
+# 5: logreg.backward.ROSE.under 0.7091 0.7089 0.7101 0.7870
+# 6:  logreg.forward.ROSE.under 0.7177 0.7241 0.6812 0.7862
+
+## In conclusion:
+# Overall, oversampling with ROSE(Randomly Over Sampling Examples) tend to give us better result.
+# Modeling with SVM give the highest accuracy.
+# To predict Attrition( == "Yes"), oversampling with ROSE should be used and SVM can give the best result.
+# However, this can come at the cost of very poor specificty (i.e. Attrition == "No")
+# On the other hand, to predict Attrition ( == "No"), oversampling with SMOTE should be used, both SVM and RandomForest yield satisfactory results.
+# However, in terms of AUC, stepwise logistic regression yield the best result.
+# AUC of a classifier is equal to the probability that the classifier will rank a randomly chosen positive example higher than a randomly chosen negative example
+
 ####################################################################################################################################
 # End Of Company Analysis
 ####################################################################################################################################
@@ -651,13 +695,110 @@ hr.company.svm.sigmoid.ROSE.over <- support.vector.classifier(hr.dt.train.over.R
 # Departmental Analysis
 ####################################################################################################################################
 
-# We split the data into 3 departments
-# hr.dt.sales <- hr.dt[Department == "Sales"]
-# hr.dt.rd <- hr.dt[Department == "Research & Development"]
-# hr.dt.hr <- hr.dt[Department == "Human Resources"]
+# From the above analysis, we choose to oversample our departmental sub-datast using both ROSE (to predict Attrition (== "Yes")) and SMOTE (to predict Attrition (== "No"))
+# SVM is used as it tends to give the best sensitivity and specificity
+# For the following analysis, we are going to use Hyper Parameter Optimization technique (aka. tuning) to find the best SVM model.
 
-#### Comparing  Log reg Models ####
-# model.list <- list(Ridge = ridge, Lasso = lasso, ElasticNet = enet)
-# res <- resamples(model.list)
-# summary(res)
-# xyplot(resamples(list(Lasso = lasso, ElasticNet = enet)), metric = 'Accuracy') 
+# We split the data into 3 departments
+hr.dt.sales <- hr.dt[Department == "Sales"]
+hr.dt.rd <- hr.dt[Department == "Research & Development"]
+hr.dt.hr <- hr.dt[Department == "Human Resources"]
+
+# Split the Sales department data
+set.seed(11112018)
+ind <- sample(2, nrow(hr.dt.sales), replace = T, prob = c(0.7, 0.3))
+hr.dt.sales.train <- hr.dt.sales[ind == 1,]
+hr.dt.sales.test <- hr.dt.sales[ind == 2,]
+# SMOTE Sales department train data
+hr.dt.sales.train.SMOTE <- SMOTE(Attrition ~ ., hr.dt.sales.train)
+# Oversample Sales department train data with ROSE
+hr.dt.sales.train.over.ROSE <- ovun.sample(Attrition ~ ., data = hr.dt.sales.train, method = "over", N = 474)$data
+
+# Split the R&D department data
+set.seed(11112018)
+ind <- sample(2, nrow(hr.dt.rd), replace = T, prob = c(0.7, 0.3))
+hr.dt.rd.train <- hr.dt.rd[ind == 1,]
+hr.dt.rd.test <- hr.dt.rd[ind == 2,]
+# SMOTE R&D department train data
+hr.dt.rd.train.SMOTE <- SMOTE(Attrition ~ ., hr.dt.rd.train)
+# Oversample R&D department train data with ROSE
+hr.dt.rd.train.over.ROSE <- ovun.sample(Attrition ~ ., data = hr.dt.rd.train, method = "over", N = 1110)$data
+
+# Split the HR department data
+set.seed(11112018)
+ind <- sample(2, nrow(hr.dt.hr), replace = T, prob = c(0.7, 0.3))
+hr.dt.hr.train <- hr.dt.hr[ind == 1,]
+hr.dt.hr.test <- hr.dt.hr[ind == 2,]
+# SMOTE HR department train data
+hr.dt.hr.train.SMOTE <- SMOTE(Attrition ~ ., hr.dt.hr.train)
+# Oversample HR department train data with ROSE
+hr.dt.hr.train.over.ROSE <- ovun.sample(Attrition ~ ., data = hr.dt.hr.train, method = "over", N = 66)$data
+
+# Modelling:
+
+# Sales:
+hr.department.sales.svm.SMOTE <- best.svm(hr.dt.sales.train.SMOTE, hr.dt.sales.test) # Out put a graph to show best cost and epsilon
+#           Actual
+# Predicted  No Yes
+#        No  96  10
+#       Yes  21  22
+# Accuracy : 0.7919463
+# Sensitivity : 0.6875
+# Specificity : 0.8205128
+# AUC : 0.754
+hr.department.sales.over.ROSE <- best.svm(hr.dt.sales.train.over.ROSE, hr.dt.sales.test)
+#           Actual
+# Predicted  No Yes
+#        No 106  15
+#       Yes  11  17
+# Accuracy : 0.8255034
+# Sensitivity : 0.53125
+# Specificity : 0.9059829
+# AUC : 0.7186
+
+# Research & Development
+hr.department.rd.svm.SMOTE <- best.svm(hr.dt.rd.train.SMOTE, hr.dt.rd.test) # Out put a graph to show best cost and epsilon
+#           Actual
+# Predicted  No Yes
+#        No 236  26
+#       Yes  37  21
+# Accuracy : 0.803125
+# Sensitivity : 0.4468085
+# Specificity : 0.8644689
+# AUC : 0.6556
+hr.department.rd.over.ROSE <- best.svm(hr.dt.rd.train.over.ROSE, hr.dt.rd.test)
+#           Actual
+# Predicted  No Yes
+#        No 106  15
+#       Yes  11  17
+# Accuracy : 0.853125
+# Sensitivity : 0.3404255
+# Specificity : 0.9413919
+# AUC : 0.6409
+
+# Human Resources:
+hr.department.hr.svm.SMOTE <- best.svm(hr.dt.hr.train.SMOTE, hr.dt.hr.test) # Out put a graph to show best cost and epsilon
+#           Actual
+# Predicted  No Yes
+#        No  96  10
+#       Yes  21  22
+# Accuracy : 0.7916667
+# Sensitivity : 0.5
+# Specificity : 0.8888889
+# AUC : 0.6944
+hr.department.hr.over.ROSE <- best.svm(hr.dt.hr.train.over.ROSE, hr.dt.hr.test)
+#           Actual
+# Predicted  No Yes
+#        No 106  15
+#       Yes  11  17
+# Accuracy : 0.7916667
+# Sensitivity : 0.1666667
+# Specificity : 1
+# AUC : 0.5833
+
+### Conclusion
+# Overall model accuracy is good for both Sales and R & D department
+# HR cannot predicted with very good accuracy primarily due to a large number of variables in comparison to sample size
+# This means increasing sample size can probably help
+# Also, all models are pretty bad at predicting Attrition(== "Yes"), there is quite a significant imblance even after oversampling with SMOTE and ROSE
+# Implication: Companys should probably develop other models, or use the model for the whole company
