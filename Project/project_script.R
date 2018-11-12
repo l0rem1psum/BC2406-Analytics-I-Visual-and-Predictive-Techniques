@@ -389,10 +389,6 @@ eval.cart <- function(built.model, hr.datatable.test){
 ####################################################################################################################################
 
 ####################################################################################################################################
-# Hiring Analysis
-####################################################################################################################################
-
-####################################################################################################################################
 # Company Analysis
 ####################################################################################################################################
 ## SMOTE:
@@ -780,8 +776,8 @@ hr.department.rd.over.ROSE <- best.svm(hr.dt.rd.train.over.ROSE, hr.dt.rd.test)
 hr.department.hr.svm.SMOTE <- best.svm(hr.dt.hr.train.SMOTE, hr.dt.hr.test) # Out put a graph to show best cost and epsilon
 #           Actual
 # Predicted  No Yes
-#        No  96  10
-#       Yes  21  22
+#        No  16   3
+#       Yes   2   3
 # Accuracy : 0.7916667
 # Sensitivity : 0.5
 # Specificity : 0.8888889
@@ -789,8 +785,8 @@ hr.department.hr.svm.SMOTE <- best.svm(hr.dt.hr.train.SMOTE, hr.dt.hr.test) # Ou
 hr.department.hr.over.ROSE <- best.svm(hr.dt.hr.train.over.ROSE, hr.dt.hr.test)
 #           Actual
 # Predicted  No Yes
-#        No 106  15
-#       Yes  11  17
+#        No  18   5
+#       Yes   0   1
 # Accuracy : 0.7916667
 # Sensitivity : 0.1666667
 # Specificity : 1
@@ -802,3 +798,76 @@ hr.department.hr.over.ROSE <- best.svm(hr.dt.hr.train.over.ROSE, hr.dt.hr.test)
 # This means increasing sample size can probably help
 # Also, all models are pretty bad at predicting Attrition(== "Yes"), there is quite a significant imblance even after oversampling with SMOTE and ROSE
 # Implication: Companys should probably develop other models, or use the model for the whole company
+
+####################################################################################################################################
+# End of Departmental Analysis
+####################################################################################################################################
+
+####################################################################################################################################
+# Hiring Analysis
+####################################################################################################################################
+
+# We find the features in our data set that can be pre-determined before hiring
+# Number of features reduced to 13
+# They are:
+# Age	Attrition	DailyRate	DistanceFromHome	Education	HourlyRate	JobRole	MaritalStatus	MonthlyIncome	MonthlyRate	NumCompaniesWorked	RelationshipSatisfaction	StockOptionLevel	WorkLifeBalance
+hr.dt.hiring <- hr.dt[,.(Age, Attrition, DailyRate, DistanceFromHome, Education, HourlyRate, JobRole, MaritalStatus, MonthlyIncome, MonthlyRate, NumCompaniesWorked, RelationshipSatisfaction, StockOptionLevel, WorkLifeBalance)]
+
+# Split train/test set
+set.seed(11112018)
+ind <- sample(2, nrow(hr.dt.hiring), replace = T, prob = c(0.7, 0.3))
+hr.dt.hiring.train <- hr.dt.hiring[ind == 1,]
+hr.dt.hiring.test <- hr.dt.hiring[ind == 2,]
+
+summary(hr.dt.hiring$Attrition)
+# No: 1233, Yes: 237
+# Oversampling hiring trainset with ROSE
+hr.dt.hiring.train.over.ROSE <- ovun.sample(Attrition ~ ., data = hr.dt.hiring.train, method = "over", N = 2466)$data
+
+## Model Building for hiring
+hr.hiring.logreg.forward <- log.reg.stepwise.forward(hr.dt.hiring.train.over.ROSE, hr.dt.hiring.test)
+# Accuracy : 0.6918
+# Sensitivity : 0.6835
+# Specificity : 0.7391
+# AUC : 0.7449
+hr.hiring.logreg.backward <- log.reg.stepwise.backward(hr.dt.hiring.train.over.ROSE, hr.dt.hiring.test)
+# Accuracy : 0.6918
+# Sensitivity : 0.6835
+# Specificity : 0.7391
+# AUC : 0.7449 (Same as above)
+hr.hiring.logreg.lasso <- log.reg.lasso(hr.dt.hiring.train.over.ROSE, hr.dt.hiring.test)
+# Accuracy : 0.4914
+# Sensitivity : 0.8551
+# Specificity : 0.4278
+# AUC : 0.6415
+hr.hiring.logreg.ridge <- log.reg.ridge(hr.dt.hiring.train.over.ROSE, hr.dt.hiring.test)
+# Accuracy : 0.4914
+# Sensitivity : 0.8841
+# Specificity : 0.4228
+# AUC : 0.6534
+hr.hiring.logreg.enet <- log.reg.enet(hr.dt.hiring.train.over.ROSE, hr.dt.hiring.test)
+# Accuracy : 0.4935
+# Sensitivity : 0.8551
+# Specificity : 0.4304
+# AUC : 0.6427
+hr.hiring.cart.max <- max.tree(hr.dt.hiring.train.over.ROSE, hr.dt.hiring.test)
+hr.hiring.cart.pruned <- pruned.tree(hr.hiring.cart.max, 0.0009)
+eval.cart(hr.hiring.cart.pruned, hr.dt.hiring.test)
+# Accuracy : 0.7177
+# Sensitivity : 0.8000
+# Specificity : 0.2464
+# AUC : 0.5232
+hr.hiring.rforest <- rand.forest(hr.dt.hiring.train.over.ROSE, hr.dt.hiring.test)
+# Accuracy : 0.8233
+# Sensitivity : 0.18841
+# Specificity : 0.93418
+# AUC : 0.5613
+hr.hiring.svm <- best.svm(hr.dt.hiring.train.over.ROSE, hr.dt.hiring.test)
+# Accuracy : 0.7650862
+# Sensitivity : 0.4057971
+# Specificity : 0.8278481
+# AUC : 0.6168
+
+# In conclusion, 
+# Random forest gives the best overall accuracy and forward logistic regression gives the overall best performance
+# Across the board, models are generally bad, so company should consider use other models or use different set of features.
